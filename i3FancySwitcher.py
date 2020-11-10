@@ -4,10 +4,9 @@ from i3ipc import Connection, Event
 def show_image(img):
     img.show()
 
-def create_ws_matte(apps, ws_w, ws_h, ws_name, ws_offset, main_matte):
+def create_ws_matte(apps, ws_w, ws_h, ws_name, ws_offset, main_matte, scale):
     term = ''
     chrome = ''
-    scale = 0.25
     fnt =  ImageFont.truetype('/home/wtheisen/Downloads/Literation Mono Bold Nerd Font Complete.ttf', 32)
 
     def draw_app_rect(x, y, w, h, g, s, o):
@@ -43,8 +42,10 @@ main_matte = Image.new('RGB', (t_rect.width, t_rect.height), color = (150, 150, 
 draw_matte = ImageDraw.Draw(main_matte)
 
 offset = 0
+num_ws = len(tree.workspaces())
+scale = 1 / num_ws
 for ws in tree.workspaces():
-    create_ws_matte(ws.leaves(), ws.rect.width, ws.rect.height, ws.name, offset, draw_matte)
-    offset += int(ws.rect.width * 0.25) + 100
+    create_ws_matte(ws.leaves(), ws.rect.width, ws.rect.height, ws.name, offset, draw_matte, scale)
+    offset += int(ws.rect.width * scale)
 
 show_image(main_matte)
