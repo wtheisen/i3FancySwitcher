@@ -1,7 +1,14 @@
-import tcolors, cv2, numpy
+import tcolors, cv2, numpy, math
 from PIL import Image, ImageDraw, ImageFont
 from i3ipc import Connection, Event
 
+icon_dict = {
+    'term':'',
+    'chrome':'',
+    'slack':'聆',
+    'spotify':'',
+    'vim': ''
+}
 ws_pos_dict = {}
 i3 = Connection()
 
@@ -27,54 +34,61 @@ for c in tcolors.get_xcolors('/home/wtheisen/.cache/wal/colors.Xresources', '*')
 def show_image(img):
     img.show()
 
-def create_ws_matte(apps, ws_w, ws_h, ws_name, ws_offset, main_matte, scale):
+def create_ws_matte(apps, ws_w, ws_h, ws_name, ws_x_offset, ws_y_offset, main_matte, scale):
+    global icon_dict
     global ws_pos_dict
     global color_dict
 
-    term = ''
-    chrome = ''
-    fnt =  ImageFont.truetype('/home/wtheisen/Downloads/Literation Mono Bold Nerd Font Complete.ttf', 32)
+    fnt =  ImageFont.truetype('/home/wtheisen/Downloads/Literation Mono Bold Nerd Font Complete.ttf', 64)
 
-    def draw_app_rect(x, y, w, h, g, s, o):
-        x = int(x * s) + offset
-        y = int(y * s)
+    def draw_app_rect(x, y, w, h, g, s, x_o, y_o):
+        x = int(x * s) + x_o
+        y = int(y * s) + y_o
         w = int(w * s)
         h = int(h * s)
 
-
         main_matte.rectangle([x, y, x + w, y + h], fill = color_dict['background'] + (255,))
-        main_matte.text((int(x + w / 2), int(y + h / 2)), g, font=fnt, fill = color_dict['color5'] + (255,))
+        main_matte.text((int(x + w / 2) - 20, int(y + h / 2) - 20), g, font=fnt, fill = color_dict['color5'] + (255,))
 
     for a in apps:
         r = a.rect
-        if 'Term' in a.name:
-            draw_app_rect(r.x, r.y, r.width, r.height, term, scale, offset)
+        if 'vim' in a.name:
+            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['vim'], scale, ws_x_offset, ws_y_offset)
+        elif 'Term' in a.name:
+            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['term'], scale, ws_x_offset, ws_y_offset)
         elif 'Chrome' in a.name or 'chrom' in a.name:
-            draw_app_rect(r.x, r.y, r.width, r.height, chrome, scale, offset)
+            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['chrome'], scale, ws_x_offset, ws_y_offset)
+        elif 'Spotify' in a.name:
+            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['spotify'], scale, ws_x_offset, ws_y_offset)
+        elif 'Slack' in a.name:
+            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['slack'], scale, ws_x_offset, ws_y_offset)
         else:
             print('App type not found')
 
 tree = i3.get_tree()
 
 t_rect = tree.rect
-main_matte = Image.new('RGBA', (t_rect.width, t_rect.height), color = color_dict['background'] + (255,))
+main_matte = Image.new('RGBA', (t_rect.width, t_rect.height), color = color_dict['background'] + (0,))
 draw_matte = ImageDraw.Draw(main_matte)
 
-offset = 0
+x_offset = 0
+y_offset = int(t_rect.height / 2) - 250
 num_ws = len(tree.workspaces())
+rows = math.ceil(num_ws / 3)
 scale = 1 / num_ws
+print(f'Rows: {rows}, Scale: {scale}')
 
 for ws in tree.workspaces():
     r = ws.rect
-    x = int(r.x * scale) + offset
-    y = int(r.y * scale)
+    x = int(r.x * scale) + x_offset
+    y = int(r.y * scale) + y_offset
     w = int(r.width * scale)
     h = int(r.height * scale)
     ws_pos_dict[ws.name] = (x, y, w, h)
 
-    draw_matte.rectangle([x, y, x + w, y + h], outline = color_dict['color1'] + (255,), fill = color_dict['color2'] + (255,), width = 4)
-    create_ws_matte(ws.leaves(), ws.rect.width, ws.rect.height, ws.name, offset, draw_matte, scale)
-    offset += int(ws.rect.width * scale)
+    draw_matte.rectangle([x, y, x + w, y + h], outline = color_dict['color1'] + (255,), fill = color_dict['foreground'] + (255,), width = 4)
+    create_ws_matte(ws.leaves(), ws.rect.width, ws.rect.height, ws.name, x_offset, y_offset, draw_matte, scale)
+    x_offset += int(ws.rect.width * scale)
 
 img = numpy.array(main_matte)
 img = img[:, :, ::-1].copy()
