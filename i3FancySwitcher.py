@@ -1,4 +1,4 @@
-import tcolors, cv2, numpy, math
+import tcolors, cv2, numpy, math, sys
 import PySimpleGUI as sg
 from PIL import Image, ImageDraw, ImageFont
 from i3ipc import Connection, Event
@@ -37,13 +37,14 @@ for c in tcolors.get_xcolors('/home/wtheisen/.cache/wal/colors.Xresources', '*')
 def show_image(img):
     img.show()
 
-def create_ws_matte(apps, ws_w, ws_h, ws_name, scale):
+def create_ws_matte(apps, ws_w, ws_h, ws_name, scale, bg_image):
     global icon_dict
     global ws_pos_dict
     global color_dict
 
     fnt =  ImageFont.truetype('/home/wtheisen/Downloads/Literation Mono Bold Nerd Font Complete.ttf', 64)
-    ws_matte = Image.new('RGBA', (ws_w, ws_h), color = color_dict['background'] + (0,))
+    ws_matte = Image.open(bg_image).resize((ws_w, ws_h))
+    # ws_matte = Image.new('RGBA', (ws_w, ws_h), color = color_dict['background'] + (0,))
     draw_matte = ImageDraw.Draw(ws_matte)
 
     def draw_app_rect(x, y, w, h, g, s):
@@ -94,6 +95,8 @@ def create_ws_buttons(ws_matte_filename_list, t_rect, orient):
 
 #################################
 
+bg_image = sys.argv[1]
+
 tree = i3.get_tree()
 t_rect = tree.rect
 
@@ -111,7 +114,7 @@ for ws in tree.workspaces():
     h = int(r.height * scale)
     ws_pos_dict[ws.name] = (x, y, w, h)
 
-    ws_matte_filename_list.append(create_ws_matte(ws.leaves(), w, h, ws.name, scale))
+    ws_matte_filename_list.append(create_ws_matte(ws.leaves(), w, h, ws.name, scale, bg_image))
 
 orient = 'hor'
 ws_button_list = create_ws_buttons(ws_matte_filename_list, t_rect, orient)
