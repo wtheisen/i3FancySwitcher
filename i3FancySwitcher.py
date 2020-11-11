@@ -4,27 +4,16 @@ from PIL import Image, ImageDraw, ImageFont
 from i3ipc import Connection, Event
 
 icon_dict = {
-    'term':'',
-    'chrome':'',
-    'slack':'聆',
-    'spotify':'',
-    'vim': '',
-    'unknown': ''
+    'Vim': '',
+    'Term':'',
+    'Chrom':'',
+    'Slack':'聆',
+    'Spotify':'',
+    'unknown':''
 }
 
 ws_pos_dict = {}
 i3 = Connection()
-
-def mouse_click(event, x, y, flags, params):
-    global i3
-    if event == cv2.EVENT_LBUTTONDOWN:
-        print(f'Clicked X: {x}, Y: {y}')
-        for name, pos in ws_pos_dict.items():
-            if x > pos[0] and x < pos[0] + pos[2]:
-                if y > pos[1] and y < pos[1] + pos[3]:
-                    print(f'Clicked on {name}')
-                    i3.command(f'workspace {name}')
-                    exit()
 
 def hex_to_rgb(hex_col):
     h = hex_col.lstrip('#')
@@ -37,14 +26,11 @@ for c in tcolors.get_xcolors('/home/wtheisen/.cache/wal/colors.Xresources', '*')
 def show_image(img):
     img.show()
 
-def create_ws_matte(apps, ws_w, ws_h, ws_name, scale, bg_image):
+def create_ws_matte(apps, ws_w, ws_h, ws_name, scale, ws_matte, fnt):
     global icon_dict
     global ws_pos_dict
     global color_dict
 
-    fnt =  ImageFont.truetype('/home/wtheisen/Downloads/Literation Mono Bold Nerd Font Complete.ttf', 64)
-    ws_matte = Image.open(bg_image).resize((ws_w, ws_h))
-    # ws_matte = Image.new('RGBA', (ws_w, ws_h), color = color_dict['background'] + (0,))
     draw_matte = ImageDraw.Draw(ws_matte)
 
     def draw_app_rect(x, y, w, h, g, s):
@@ -56,20 +42,37 @@ def create_ws_matte(apps, ws_w, ws_h, ws_name, scale, bg_image):
         draw_matte.rectangle([x, y, x + w, y + h], fill = color_dict['background'] + (255,))
         draw_matte.text((int(x + w / 2) - 20, int(y + h / 2) - 20), g, font=fnt, fill = color_dict['color5'] + (255,))
 
+    prev_app_rect = None
+    tabbed = False
+    g_string = ''
     for a in apps:
         r = a.rect
-        if 'vim' in a.name:
-            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['vim'], scale)
-        elif 'Term' in a.name:
-            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['term'], scale)
-        elif 'Chrome' in a.name or 'chrom' in a.name:
-            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['chrome'], scale)
-        elif 'spotify' in a.name:
-            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['spotify'], scale)
-        elif 'Slack' in a.name:
-            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['slack'], scale)
-        else:
-            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict['unknown'], scale)
+
+        if prev_app_rect:
+            tabbed = False
+            if r.x == prev_app_rect.x and r.y == prev_app_rect.y:
+                tabbed = True
+        prev_app_rect = r
+
+        key = [s for s in icon_dict.keys() if s in a.name]
+        if len(key) < 1:
+            key = ['unknown']
+
+        if tabbed:
+            g_string += (' |' + icon_dict[key[0]])
+            continue
+        elif not tabbed and g_string != '':
+            p_r = prev_app_rect
+            draw_app_rect(p_r.x, p_r.y, p_r.width, p_r.height, g_string, scale)
+            g_string = ''
+        elif not tabbed and g_string == '':
+            g_string = icon_dict[key[0]]
+            draw_app_rect(r.x, r.y, r.width, r.height, g_string, scale)
+            # g_string = ''
+
+    if tabbed and g_string != '':
+        p_r = prev_app_rect
+        draw_app_rect(p_r.x, p_r.y, p_r.width, p_r.height, g_string, scale)
 
     ws_matte.save(f'ws_{ws_name}_matte.png')
     return f'ws_{ws_name}_matte.png'
@@ -105,7 +108,10 @@ rows = math.ceil(num_ws / 3)
 scale = 1 / num_ws
 print(f'Rows: {rows}, Scale: {scale}')
 
+fnt =  ImageFont.truetype('/home/wtheisen/Downloads/Literation Mono Bold Nerd Font Complete.ttf', 64)
+ws_matte = Image.open(bg_image).resize((int(t_rect.width * scale), int(t_rect.height * scale)))
 ws_matte_filename_list = []
+
 for ws in tree.workspaces():
     r = ws.rect
     x = int(r.x * scale)
@@ -114,7 +120,7 @@ for ws in tree.workspaces():
     h = int(r.height * scale)
     ws_pos_dict[ws.name] = (x, y, w, h)
 
-    ws_matte_filename_list.append(create_ws_matte(ws.leaves(), w, h, ws.name, scale, bg_image))
+    ws_matte_filename_list.append(create_ws_matte(ws.leaves(), w, h, ws.name, scale, ws_matte.copy(), fnt))
 
 orient = 'hor'
 ws_button_list = create_ws_buttons(ws_matte_filename_list, t_rect, orient)
