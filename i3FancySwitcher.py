@@ -52,15 +52,15 @@ def create_ws_matte(ws, scale, ws_matte, fnt_size_glyph, fnt_size_text, glyphs, 
         return a_rect
 
     def draw_app_rect(x, y, w, h, g, s):
+        print(ws.rect.height, y + h)
+        if (y + h) > ws.rect.height:
+            h = (ws.rect.height - y) - ((ws.rect.height - y) * 0.05)
         x = int(x * s)
         y = int(y * s)
         w = int(w * s)
         h = int(h * s)
 
-        g_w = int(w * 0.03)
-        g_h = int(h * 0.05)
-
-        draw_matte.rectangle([x, y, x + w, y + h - g_h], fill = color_dict['background'] + (255,))
+        draw_matte.rectangle([x, y, x + w, y + h], fill = color_dict['background'] + (255,))
 
         if glyphs:
             t_w, t_h = draw_matte.textsize(g, font=fnt_size_glyph)
@@ -75,7 +75,7 @@ def create_ws_matte(ws, scale, ws_matte, fnt_size_glyph, fnt_size_text, glyphs, 
 
         t_w, t_h = draw_matte.textsize(str(ws_num), font=fnt_size_glyph)
         draw_matte.text((1, 1), str(ws_num), font=fnt_size_glyph, fill = color_dict['color5'] + (255,))
-        draw_matte.text((t_w - 10, t_h / 2), '(' + ws.name + ')', font=fnt_size_text, fill = color_dict['color5'] + (255,))
+        draw_matte.text((t_w + 5, (t_h - 1) / 2), '(' + ws.name + ')', font=fnt_size_text, fill = color_dict['color5'] + (255,))
 
     prev_app_rect = None
     tabbed = False
@@ -95,7 +95,7 @@ def create_ws_matte(ws, scale, ws_matte, fnt_size_glyph, fnt_size_text, glyphs, 
             key = ['unknown']
 
         if tabbed:
-            g_string += (' ' + get_label(key))
+            g_string += (' / ' + get_label(key))
             prev_app_rect = r
         elif g_string != '':
             if prev_app_rect:
@@ -187,8 +187,8 @@ if __name__ == "__main__":
     num_ws = len(tree.workspaces())
     print(f'Scale: {scale}')
 
-    fnt_size_glyph = ImageFont.truetype(font, 64)
-    fnt_size_text = ImageFont.truetype(font, 16)
+    fnt_size_glyph = ImageFont.truetype(font, int(320 * scale))
+    fnt_size_text = ImageFont.truetype(font, int(130 * scale))
 
     ws_matte = Image.open(bg_image).resize((int(t_rect.width * scale), int(t_rect.height * scale)))
     ws_matte_filename_list = []
@@ -208,7 +208,6 @@ if __name__ == "__main__":
         ws_pos_dict[ws.name] = (x, y, w, h)
         main_size[0] += w
         main_size[1] += h
-        print(f'W: {w}, H: {h}')
 
         ws_matte_filename_list.append(create_ws_matte(ws, scale, ws_matte.copy(), fnt_size_glyph, fnt_size_text, glyphs, ws_num))
         ws_rect = ws.rect
@@ -225,7 +224,7 @@ if __name__ == "__main__":
 
     if orient[0] == 'v':
         size[0] = int(ws_rect.width * (scale + 0.01))
-        size[1] = main_size[1] + int(ws_rect.height * 0.04)
+        size[1] = main_size[1] + int(ws_rect.height * 0.02)
         if orient[1] == 'l':
             loc[0] = 1
             loc[1] = int(ws_rect.height / 2) - int(size[1] / 2)
