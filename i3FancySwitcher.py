@@ -1,4 +1,4 @@
-import tcolors, cv2, numpy, math, sys
+import tcolors, cv2, numpy, math, sys, getopt
 import PySimpleGUI as sg
 from PIL import Image, ImageDraw, ImageFont
 from i3ipc import Connection, Event
@@ -28,16 +28,20 @@ except:
     color_dict['background'] = (10, 10, 10)
     color_dict['color5'] = (127, 127, 127)
 
-
 def show_image(img):
     img.show()
 
-def create_ws_matte(ws, scale, ws_matte, fnt):
+def create_ws_matte(ws, scale, ws_matte, fnt, glyphs):
     global icon_dict
     global ws_pos_dict
     global color_dict
 
     draw_matte = ImageDraw.Draw(ws_matte)
+
+    def get_label(key):
+        if glyphs:
+            return icon_dict[key[0]]
+        return key[0]
 
     def normalize(ws_rect, a_rect):
         if a_rect.x > ws_rect.width:
@@ -83,16 +87,16 @@ def create_ws_matte(ws, scale, ws_matte, fnt):
             key = ['unknown']
 
         if tabbed:
-            g_string += (' ' + icon_dict[key[0]])
+            g_string += (' ' + get_label(key))
             prev_app_rect = r
         elif g_string != '':
             if prev_app_rect:
                 p_r = prev_app_rect
                 draw_app_rect(p_r.x, p_r.y, p_r.width, p_r.height, g_string, scale)
                 g_string = ''
-            draw_app_rect(r.x, r.y, r.width, r.height, icon_dict[key[0]], scale)
+            draw_app_rect(r.x, r.y, r.width, r.height, get_label(key), scale)
         elif g_string == '':
-            g_string = icon_dict[key[0]]
+            g_string = get_label(key)
             draw_app_rect(r.x, r.y, r.width, r.height, g_string, scale)
             prev_app_rect = r
 
@@ -123,73 +127,117 @@ def create_ws_buttons(ws_matte_filename_list, ws_rect, orient, scale):
 
     return layout_list
 
+def usage(exit_code):
+    print('Usage: python3 i3FancySwitcher -b [BACKGROUND_IMAGE] -f [FONT.TTF] [OPTIONAL_ARGS]')
+    print('\t-b/--background: Path to the background image to use')
+    print('\t-f/--font: Path to the .ttf file to use for the text')
+    print("\t-l/--location: Location of the bar, options of 'vl', 'vr', 'ht', 'hb' (vertical left/right, horizontal top/bottom). If not given defaults to the center of the screen.")
+    print('\t-g/--glyphs: no argument, specifies whether to describe workspace windows using icons or just text. Defaults to text')
+    print('\t-s/--scale: Percentage of screen real estate to take up, defaults to 20%')
+    print('\t-h/--help: Prints the usage')
+    exit(exit_code)
+
 #################################
 
-bg_image = sys.argv[1]
+if __name__ == "__main__":
+    argv = sys.argv[1:]
 
-tree = i3.get_tree()
-t_rect = tree.rect
+    bg_image = None
+    font = None
+    location = 'c'
+    glyphs = False
+    scale = 0.20
 
-num_ws = len(tree.workspaces())
-scale = 0.20
-print(f'Scale: {scale}')
+    try:
+        opts, args = getopt.getopt(argv, 'b:f:l:ghs:',
+                ['background=', 'font=', 'location=', 'scale=', 'glyphs', 'help'])
+    except getopt.GetoptError:
+        usage(1)
 
-fnt =  ImageFont.truetype(sys.argv[2], 64)
-ws_matte = Image.open(bg_image).resize((int(t_rect.width * scale), int(t_rect.height * scale)))
-ws_matte_filename_list = []
+    for opt, arg in opts:
+        print(opt, arg)
+        if opt in ('-h', '--help'):
+            usage(1)
+        elif opt in ('-b', '--background'):
+            bg_image = arg
+        elif opt in ('-f', '--font'):
+            font = arg
+        elif opt in ('-l', '--location'):
+            orient = arg
+        elif opt in ('-g', '--glyphs'):
+            glyphs = True
+        elif opt in ('-s', '--scale'):
+            scale = float(arg)
 
-main_size = [0, 0]
-ws_rect = None
-for ws in tree.workspaces():
-    r = ws.rect
-    x = int(r.x * scale)
-    y = int(r.y * scale)
-    w = int(r.width * scale)
-    h = int(r.height * scale)
-    ws_pos_dict[ws.name] = (x, y, w, h)
-    main_size[0] += w
-    main_size[1] += h
-    print(f'W: {w}, H: {h}')
+    if not bg_image or not font:
+        print('background or font not set')
+        usage(1)
 
-    ws_matte_filename_list.append(create_ws_matte(ws, scale, ws_matte.copy(), fnt))
-    ws_rect = ws.rect
+    tree = i3.get_tree()
+    t_rect = tree.rect
 
-orient = 'c'
-if len(sys.argv) == 4:
-    orient = sys.argv[3]
-ws_button_list = create_ws_buttons(ws_matte_filename_list, ws_rect, orient, scale)
+    num_ws = len(tree.workspaces())
+    print(f'Scale: {scale}')
 
-loc = [1, 1]
-size = [1, 1]
+    if glyphs:
+        fnt = ImageFont.truetype(font, 64)
+    else:
+        fnt = ImageFont.truetype(font, 16)
 
-if orient[0] == 'v':
-    size[0] = int(ws_rect.width * (scale + 0.01))
-    size[1] = main_size[1] + int(ws_rect.height * 0.04)
-    if orient[1] == 'l':
-        loc[0] = 1
-        loc[1] = int(ws_rect.height / 2) - int(size[1] / 2)
-    elif orient[1] == 'r':
-        loc[0] = ws_rect.width - size[0]
-        loc[1] = int(ws_rect.height / 2) - int(size[1] / 2)
-    w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0,
-            location=(loc[0],loc[1]),
-            size=(size[0], size[1]))
-elif orient[0] == 'h':
-    size[0] = main_size[0] + int(ws_rect.width * 0.02)
-    size[1] = int(ws_rect.height * (scale + 0.01))
-    if orient[1] == 't':
-        loc[0] = int(ws_rect.width / 2) - int(size[0] / 2)
-        loc[1] = 1
-    elif orient[1] == 'b':
-        loc[0] = int(ws_rect.width / 2) - int(size[0] / 2)
-        loc[1] = ws_rect.height - size[1]
-    w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0,
-            location=(loc[0],loc[1]),
-            size=(size[0], size[1]))
-else:
-    w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0)
+    ws_matte = Image.open(bg_image).resize((int(t_rect.width * scale), int(t_rect.height * scale)))
+    ws_matte_filename_list = []
 
-events, values = w.read()
-print(f'Clicked on {events}')
-w.close()
-i3.command(f'workspace {events}')
+    main_size = [0, 0]
+    ws_rect = None
+    for ws in tree.workspaces():
+        r = ws.rect
+        x = int(r.x * scale)
+        y = int(r.y * scale)
+        w = int(r.width * scale)
+        h = int(r.height * scale)
+        ws_pos_dict[ws.name] = (x, y, w, h)
+        main_size[0] += w
+        main_size[1] += h
+        print(f'W: {w}, H: {h}')
+
+        ws_matte_filename_list.append(create_ws_matte(ws, scale, ws_matte.copy(), fnt, glyphs))
+        ws_rect = ws.rect
+
+    if len(sys.argv) == 4:
+        orient = sys.argv[3]
+    ws_button_list = create_ws_buttons(ws_matte_filename_list, ws_rect, orient, scale)
+
+    loc = [1, 1]
+    size = [1, 1]
+
+    if orient[0] == 'v':
+        size[0] = int(ws_rect.width * (scale + 0.01))
+        size[1] = main_size[1] + int(ws_rect.height * 0.04)
+        if orient[1] == 'l':
+            loc[0] = 1
+            loc[1] = int(ws_rect.height / 2) - int(size[1] / 2)
+        elif orient[1] == 'r':
+            loc[0] = ws_rect.width - size[0]
+            loc[1] = int(ws_rect.height / 2) - int(size[1] / 2)
+        w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0,
+                location=(loc[0],loc[1]),
+                size=(size[0], size[1]))
+    elif orient[0] == 'h':
+        size[0] = main_size[0] + int(ws_rect.width * 0.02)
+        size[1] = int(ws_rect.height * (scale + 0.01))
+        if orient[1] == 't':
+            loc[0] = int(ws_rect.width / 2) - int(size[0] / 2)
+            loc[1] = 1
+        elif orient[1] == 'b':
+            loc[0] = int(ws_rect.width / 2) - int(size[0] / 2)
+            loc[1] = ws_rect.height - size[1]
+        w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0,
+                location=(loc[0],loc[1]),
+                size=(size[0], size[1]))
+    else:
+        w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0)
+
+    events, values = w.read()
+    print(f'Clicked on {events}')
+    w.close()
+    i3.command(f'workspace {events}')
