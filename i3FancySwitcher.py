@@ -1,5 +1,6 @@
-import tcolors, cv2, numpy, math, sys, getopt
+import tcolors, numpy, math, sys, getopt, base64
 import PySimpleGUI as sg
+from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 from i3ipc import Connection, Event
 
@@ -13,6 +14,7 @@ icon_dict = {
 }
 
 ws_pos_dict = {}
+ws_name_img_dict = {}
 i3 = Connection()
 
 def hex_to_rgb(hex_col):
@@ -34,6 +36,7 @@ def show_image(img):
 def create_ws_matte(ws, scale, ws_matte, fnt_size_glyph, fnt_size_text, glyphs, ws_num):
     global icon_dict
     global ws_pos_dict
+    global ws_name_img_dict
     global color_dict
 
     draw_matte = ImageDraw.Draw(ws_matte)
@@ -112,18 +115,23 @@ def create_ws_matte(ws, scale, ws_matte, fnt_size_glyph, fnt_size_text, glyphs, 
         p_r = prev_app_rect
         draw_app_rect(p_r.x, p_r.y, p_r.width, p_r.height, g_string, scale)
 
-    ws_matte.save(f'ws_{ws.name}_matte.png')
-    return f'ws_{ws.name}_matte.png'
+    b = BytesIO()
+    ws_matte.save(b, format='PNG')
+    ws_name_img_dict[ws.name] = base64.b64encode(b.getvalue())
+    # ws_matte.save(f'ws_{ws.name}_matte.png')
+    # return f'ws_{ws.name}_matte.png'
 
-def create_ws_buttons(ws_matte_filename_list, ws_rect, orient, scale):
+def create_ws_buttons(ws_rect, orient, scale):
+    global ws_name_img_dict
+
     if orient[0] == 'v':
         layout_list = []
     else:
         layout_list = [[]]
 
-    for ws_matte in ws_matte_filename_list:
-        ws_name = ''.join(ws_matte.split('_')[1:-1])
-        btn = sg.Button('', image_filename = ws_matte,
+    for ws_name, ws_matte in ws_name_img_dict.items():
+        # ws_name = ''.join(ws_matte.split('_')[1:-1])
+        btn = sg.Button('', image_data = ws_matte,
                 image_size=(int(ws_rect.width * scale), int(ws_rect.height * scale)),
                 border_width=0,
                 key=ws_name,)
@@ -209,7 +217,8 @@ if __name__ == "__main__":
         main_size[0] += w
         main_size[1] += h
 
-        ws_matte_filename_list.append(create_ws_matte(ws, scale, ws_matte.copy(), fnt_size_glyph, fnt_size_text, glyphs, ws_num))
+        # ws_matte_file_list.append(create_ws_matte(ws, scale, ws_matte.copy(), fnt_size_glyph, fnt_size_text, glyphs, ws_num))
+        create_ws_matte(ws, scale, ws_matte.copy(), fnt_size_glyph, fnt_size_text, glyphs, ws_num)
         ws_rect = ws.rect
 
         ws_num_map_dict[str(ws_num)] = ws.name
@@ -217,7 +226,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) == 4:
         orient = sys.argv[3]
-    ws_button_list = create_ws_buttons(ws_matte_filename_list, ws_rect, orient, scale)
+    ws_button_list = create_ws_buttons(ws_rect, orient, scale)
 
     loc = [1, 1]
     size = [1, 1]
