@@ -20,36 +20,56 @@ def hex_to_rgb(hex_col):
     return tuple((int(h[i:i+2], 16) for i in (0, 2, 4)))
 
 color_dict = {}
-for c in tcolors.get_xcolors('/home/wtheisen/.cache/wal/colors.Xresources', '*'):
-    color_dict[c[0]] = hex_to_rgb(c[1])
+try:
+    for c in tcolors.get_xcolors('/home/wtheisen/.cache/wal/colors.Xresources', '*'):
+        color_dict[c[0]] = hex_to_rgb(c[1])
+except:
+    print('No .Xresources found, using fallbacks')
+    color_dict['background'] = (10, 10, 10)
+    color_dict['color5'] = (127, 127, 127)
+
 
 def show_image(img):
     img.show()
 
-def create_ws_matte(apps, ws_w, ws_h, ws_name, scale, ws_matte, fnt):
+def create_ws_matte(ws, scale, ws_matte, fnt):
     global icon_dict
     global ws_pos_dict
     global color_dict
 
     draw_matte = ImageDraw.Draw(ws_matte)
 
+    def normalize(ws_rect, a_rect):
+        if a_rect.x > ws_rect.width:
+            a_rect.x = a_rect.x - ws_rect.width
+        elif a_rect.y > ws_rect.height:
+            a_rect.y = a_rect.y - ws_rect.height
+
+        return a_rect
+
     def draw_app_rect(x, y, w, h, g, s):
         x = int(x * s)
         y = int(y * s)
         w = int(w * s)
         h = int(h * s)
+        print(f'\t\t X: {x}, Y: {y}, W: {w}, H: {h}')
 
-        draw_matte.rectangle([x, y, x + w, y + h], fill = color_dict['background'] + (255,))
+        g_w = int(w * 0.03)
+        g_h = int(h * 0.03)
+
+        draw_matte.rectangle([x, y, x + w - g_w, y + h - g_h], fill = color_dict['background'] + (255,))
         t_w, t_h = draw_matte.textsize(g, font=fnt)
-        t_x = (x + w - t_w) / 2
-        t_y = (y + h - t_h) / 2
+        t_x = x + (w - t_w) / 2
+        t_y = y + (h - t_h) / 2
+        print(t_x, t_y)
         draw_matte.text((t_x, t_y), g, font=fnt, fill = color_dict['color5'] + (255,))
 
     prev_app_rect = None
     tabbed = False
     g_string = ''
-    for a in apps:
-        r = a.rect
+    print(f'WS: {ws.name}')
+    for a in ws.leaves():
+        r = normalize(ws.rect, a.rect)
 
         if prev_app_rect:
             tabbed = False
@@ -65,13 +85,13 @@ def create_ws_matte(apps, ws_w, ws_h, ws_name, scale, ws_matte, fnt):
         if tabbed:
             g_string += (' ' + icon_dict[key[0]])
             prev_app_rect = r
-        elif not tabbed and g_string != '':
+        elif g_string != '':
             if prev_app_rect:
                 p_r = prev_app_rect
                 draw_app_rect(p_r.x, p_r.y, p_r.width, p_r.height, g_string, scale)
                 g_string = ''
             draw_app_rect(r.x, r.y, r.width, r.height, icon_dict[key[0]], scale)
-        elif not tabbed and g_string == '':
+        elif g_string == '':
             g_string = icon_dict[key[0]]
             draw_app_rect(r.x, r.y, r.width, r.height, g_string, scale)
             prev_app_rect = r
@@ -80,10 +100,10 @@ def create_ws_matte(apps, ws_w, ws_h, ws_name, scale, ws_matte, fnt):
         p_r = prev_app_rect
         draw_app_rect(p_r.x, p_r.y, p_r.width, p_r.height, g_string, scale)
 
-    ws_matte.save(f'ws_{ws_name}_matte.png')
-    return f'ws_{ws_name}_matte.png'
+    ws_matte.save(f'ws_{ws.name}_matte.png')
+    return f'ws_{ws.name}_matte.png'
 
-def create_ws_buttons(ws_matte_filename_list, t_rect, orient, scale):
+def create_ws_buttons(ws_matte_filename_list, ws_rect, orient, scale):
     if orient[0] == 'v':
         layout_list = []
     else:
@@ -92,7 +112,8 @@ def create_ws_buttons(ws_matte_filename_list, t_rect, orient, scale):
     for ws_matte in ws_matte_filename_list:
         ws_name = ''.join(ws_matte.split('_')[1:-1])
         btn = sg.Button('', image_filename = ws_matte,
-                image_size=(int(t_rect.width * scale), int(t_rect.height * scale)),
+                image_size=(int(ws_rect.width * scale), int(ws_rect.height * scale)),
+                border_width=0,
                 key=ws_name,)
                 # button_color=(sg.theme_background_color(), sg.theme_background_color()))
         if orient[0] == 'v':
@@ -110,15 +131,15 @@ tree = i3.get_tree()
 t_rect = tree.rect
 
 num_ws = len(tree.workspaces())
-# scale = 1 / num_ws
-scale = 0.25
+scale = 0.20
 print(f'Scale: {scale}')
 
-fnt =  ImageFont.truetype('/home/wtheisen/Downloads/Literation Mono Bold Nerd Font Complete.ttf', 64)
+fnt =  ImageFont.truetype(sys.argv[2], 64)
 ws_matte = Image.open(bg_image).resize((int(t_rect.width * scale), int(t_rect.height * scale)))
 ws_matte_filename_list = []
 
 main_size = [0, 0]
+ws_rect = None
 for ws in tree.workspaces():
     r = ws.rect
     x = int(r.x * scale)
@@ -128,41 +149,45 @@ for ws in tree.workspaces():
     ws_pos_dict[ws.name] = (x, y, w, h)
     main_size[0] += w
     main_size[1] += h
+    print(f'W: {w}, H: {h}')
 
-    ws_matte_filename_list.append(create_ws_matte(ws.leaves(), w, h, ws.name, scale, ws_matte.copy(), fnt))
+    ws_matte_filename_list.append(create_ws_matte(ws, scale, ws_matte.copy(), fnt))
+    ws_rect = ws.rect
 
-orient = sys.argv[2]
-ws_button_list = create_ws_buttons(ws_matte_filename_list, t_rect, orient, scale)
+orient = 'c'
+if len(sys.argv) == 4:
+    orient = sys.argv[3]
+ws_button_list = create_ws_buttons(ws_matte_filename_list, ws_rect, orient, scale)
 
 loc = [1, 1]
 size = [1, 1]
 
-if orient[0] == 'c':
-    w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0)
-elif orient[0] == 'v':
-    size[0] = int(t_rect.width * 0.25) + 30
-    size[1] = main_size[1] + 100
+if orient[0] == 'v':
+    size[0] = int(ws_rect.width * (scale + 0.01))
+    size[1] = main_size[1] + int(ws_rect.height * 0.04)
     if orient[1] == 'l':
         loc[0] = 1
-        loc[1] = int(t_rect.height / 2) - int(size[1] / 2)
+        loc[1] = int(ws_rect.height / 2) - int(size[1] / 2)
     elif orient[1] == 'r':
-        loc[0] = t_rect.width - size[0]
-        loc[1] = int(t_rect.height / 2) - int(size[1] / 2)
+        loc[0] = ws_rect.width - size[0]
+        loc[1] = int(ws_rect.height / 2) - int(size[1] / 2)
     w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0,
             location=(loc[0],loc[1]),
             size=(size[0], size[1]))
 elif orient[0] == 'h':
-    size[0] = main_size[0] + 70
-    size[1] = int(t_rect.height * 0.25) + 30
+    size[0] = main_size[0] + int(ws_rect.width * 0.02)
+    size[1] = int(ws_rect.height * (scale + 0.01))
     if orient[1] == 't':
-        loc[0] = int(t_rect.width / 2) - int(size[0] / 2)
+        loc[0] = int(ws_rect.width / 2) - int(size[0] / 2)
         loc[1] = 1
     elif orient[1] == 'b':
-        loc[0] = int(t_rect.width / 2) - int(size[0] / 2)
-        loc[1] = t_rect.height - size[1]
+        loc[0] = int(ws_rect.width / 2) - int(size[0] / 2)
+        loc[1] = ws_rect.height - size[1]
     w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0,
             location=(loc[0],loc[1]),
             size=(size[0], size[1]))
+else:
+    w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0)
 
 events, values = w.read()
 print(f'Clicked on {events}')
