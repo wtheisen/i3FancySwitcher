@@ -42,6 +42,7 @@ Usage: python3 i3FancySwitcher -b [BACKGROUND_IMAGE] -f [FONT.TTF] [OPTIONAL_ARG
 ```
 
 ### TODO
-- [ ] Actually nice command line argument structure
-- [ ] Fix scaling issues on buttons
+- [ ] Fix scaling issues on buttons (Works but hacky)
+- [ ] Allow for scrolling buttons should there be that many workspaces
 - [ ] SPEEEEEEEEED
+- [ ] Add more glyphs
