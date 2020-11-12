@@ -5,4 +5,9 @@ fancy drop in addition to i3.
 
 ![Current State](example.gif)
 
-Colors are read from .Xresources by (tcolors)[https://github.com/mkoskar/tcolors]
+Colors are read from .Xresources by [tcolors](https://github.com/mkoskar/tcolors)
+
+### TODO
+- [ ] Actually nice command line argument structure
+- [ ] Fix scaling issues on buttons
+- [ ] SPEEEEEEEEED
