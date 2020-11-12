@@ -1,0 +1,4 @@
+i3ipc==2.2.1
+numpy==1.18.4
+Pillow==8.0.1
+PySimpleGUI==4.30.0
