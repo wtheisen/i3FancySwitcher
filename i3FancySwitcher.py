@@ -31,7 +31,7 @@ except:
 def show_image(img):
     img.show()
 
-def create_ws_matte(ws, scale, ws_matte, fnt, glyphs):
+def create_ws_matte(ws, scale, ws_matte, fnt_size_glyph, fnt_size_text, glyphs, ws_num):
     global icon_dict
     global ws_pos_dict
     global color_dict
@@ -56,22 +56,30 @@ def create_ws_matte(ws, scale, ws_matte, fnt, glyphs):
         y = int(y * s)
         w = int(w * s)
         h = int(h * s)
-        print(f'\t\t X: {x}, Y: {y}, W: {w}, H: {h}')
 
         g_w = int(w * 0.03)
-        g_h = int(h * 0.03)
+        g_h = int(h * 0.05)
 
-        draw_matte.rectangle([x, y, x + w - g_w, y + h - g_h], fill = color_dict['background'] + (255,))
-        t_w, t_h = draw_matte.textsize(g, font=fnt)
-        t_x = x + (w - t_w) / 2
-        t_y = y + (h - t_h) / 2
-        print(t_x, t_y)
-        draw_matte.text((t_x, t_y), g, font=fnt, fill = color_dict['color5'] + (255,))
+        draw_matte.rectangle([x, y, x + w, y + h - g_h], fill = color_dict['background'] + (255,))
+
+        if glyphs:
+            t_w, t_h = draw_matte.textsize(g, font=fnt_size_glyph)
+            t_x = x + (w - t_w) / 2
+            t_y = y + (h - t_h) / 2
+            draw_matte.text((t_x, t_y), g, font=fnt_size_glyph, fill = color_dict['color5'] + (255,))
+        else:
+            t_w, t_h = draw_matte.textsize(g, font=fnt_size_text)
+            t_x = x + (w - t_w) / 2
+            t_y = y + (h - t_h) / 2
+            draw_matte.text((t_x, t_y), g, font=fnt_size_text, fill = color_dict['color5'] + (255,))
+
+        t_w, t_h = draw_matte.textsize(str(ws_num), font=fnt_size_glyph)
+        draw_matte.text((1, 1), str(ws_num), font=fnt_size_glyph, fill = color_dict['color5'] + (255,))
+        draw_matte.text((t_w - 10, t_h / 2), '(' + ws.name + ')', font=fnt_size_text, fill = color_dict['color5'] + (255,))
 
     prev_app_rect = None
     tabbed = False
     g_string = ''
-    print(f'WS: {ws.name}')
     for a in ws.leaves():
         r = normalize(ws.rect, a.rect)
 
@@ -144,7 +152,7 @@ if __name__ == "__main__":
 
     bg_image = None
     font = None
-    location = 'c'
+    orient = 'c'
     glyphs = False
     scale = 0.20
 
@@ -179,16 +187,18 @@ if __name__ == "__main__":
     num_ws = len(tree.workspaces())
     print(f'Scale: {scale}')
 
-    if glyphs:
-        fnt = ImageFont.truetype(font, 64)
-    else:
-        fnt = ImageFont.truetype(font, 16)
+    fnt_size_glyph = ImageFont.truetype(font, 64)
+    fnt_size_text = ImageFont.truetype(font, 16)
 
     ws_matte = Image.open(bg_image).resize((int(t_rect.width * scale), int(t_rect.height * scale)))
     ws_matte_filename_list = []
 
     main_size = [0, 0]
     ws_rect = None
+    ws_num = 1
+
+    ws_num_map_dict = {}
+
     for ws in tree.workspaces():
         r = ws.rect
         x = int(r.x * scale)
@@ -200,8 +210,11 @@ if __name__ == "__main__":
         main_size[1] += h
         print(f'W: {w}, H: {h}')
 
-        ws_matte_filename_list.append(create_ws_matte(ws, scale, ws_matte.copy(), fnt, glyphs))
+        ws_matte_filename_list.append(create_ws_matte(ws, scale, ws_matte.copy(), fnt_size_glyph, fnt_size_text, glyphs, ws_num))
         ws_rect = ws.rect
+
+        ws_num_map_dict[str(ws_num)] = ws.name
+        ws_num += 1
 
     if len(sys.argv) == 4:
         orient = sys.argv[3]
@@ -220,6 +233,7 @@ if __name__ == "__main__":
             loc[0] = ws_rect.width - size[0]
             loc[1] = int(ws_rect.height / 2) - int(size[1] / 2)
         w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0,
+                return_keyboard_events=True,
                 location=(loc[0],loc[1]),
                 size=(size[0], size[1]))
     elif orient[0] == 'h':
@@ -232,12 +246,15 @@ if __name__ == "__main__":
             loc[0] = int(ws_rect.width / 2) - int(size[0] / 2)
             loc[1] = ws_rect.height - size[1]
         w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0,
+                return_keyboard_events=True,
                 location=(loc[0],loc[1]),
                 size=(size[0], size[1]))
     else:
-        w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0)
+        w = sg.Window('i3FancySwitcher', ws_button_list, alpha_channel = 1.0, return_keyboard_events=True)
 
     events, values = w.read()
-    print(f'Clicked on {events}')
     w.close()
+    print(f'Clicked on {events}')
+    if events in ws_num_map_dict.keys():
+        events = ws_num_map_dict[events]
     i3.command(f'workspace {events}')
