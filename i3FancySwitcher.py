@@ -3,6 +3,7 @@ import PySimpleGUI as sg
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 from i3ipc import Connection, Event
+from os.path import expanduser
 
 icon_dict = {
     'Vim': '',
@@ -23,7 +24,7 @@ def hex_to_rgb(hex_col):
 
 color_dict = {}
 try:
-    for c in tcolors.get_xcolors('/home/wtheisen/.cache/wal/colors.Xresources', '*'):
+    for c in tcolors.get_xcolors(expanduser("~") + '/.cache/wal/colors.Xresources', '*'):
         color_dict[c[0]] = hex_to_rgb(c[1])
 except:
     print('No .Xresources found, using fallbacks')
