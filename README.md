@@ -7,7 +7,7 @@ fancy drop in addition to i3.
 
 To actually travel to the desired workspace the user can either click on the image
 representation of said workspace, or press the numerical shortcut that has been 
-associated with the workspace (the number in the top right corner). Should the user
+associated with the workspace (the number in the top left corner). Should the user
 press a key that's not been denoted as a shortcut, instead a workspace of that name
 will be created. E.g. The user presses `w` -> User is then taken to a new workspace
 `w`. In parentheses the name of the workspace is displayed.
